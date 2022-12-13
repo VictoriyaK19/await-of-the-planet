@@ -1,4 +1,5 @@
-import EventEmitter from "eventemitter3";
+import 'regenerator-runtime/runtime'
+import EventEmitter, { prototype } from "eventemitter3";
 import image from "../images/planet.svg";
 
 export default class Application extends EventEmitter {
@@ -10,17 +11,9 @@ export default class Application extends EventEmitter {
 
   constructor() {
     super();
-
-    const box = document.createElement("div");
-    box.classList.add("box");
-    box.innerHTML = this._render({
-      name: "Placeholder",
-      terrain: "placeholder",
-      population: 0,
-    });
-
-    document.body.querySelector(".main").appendChild(box);
-
+    this._create();
+    this._loading = document.querySelector('progress');
+   
     this.emit(Application.events.READY);
   }
 
@@ -43,5 +36,68 @@ export default class Application extends EventEmitter {
   </div>
 </article>
     `;
+  };
+  
+  async _load() {
+    this._startLoading();
+
+    async function getData(point) {
+      const url = new URL(String(point));
+      const promise = await fetch(url, {
+        method: "GET",
+      });
+       return await promise.json();
+    };
+
+    const planetsArray = [];
+    let data = await getData('https://swapi.boom.dev/api/planets');
+
+    planetsArray.push(data.results);
+    
+    while(this._checkIfNext(data) !== true) {
+      const currentData = await getData(data.next);
+      planetsArray.push(currentData.results);
+      data = await currentData;
+    }
+    
+    this._stopLoading();
+
+    return planetsArray;
+  };
+
+
+  _checkIfNext(obj) {
+    if (obj.next !== null) {
+      return false;
+  } else {
+      return true;
+  };
+  };
+
+  async _create() {
+    const box = document.createElement("div");
+    box.classList.add("box");
+    
+    const planets = await this._load();
+    planets.forEach(element => {
+      element.forEach(planet => {
+        const name = planet.name;
+        const terrain = planet.terrain;
+        const population = planet.population;
+        box.innerHTML += this._render({name, terrain, population});
+      })
+    })
+
+    document.body.querySelector(".main").appendChild(box);
+
+  };
+
+  _startLoading() {
+    document.querySelector('progress').style.display = 'block';
   }
-}
+
+  _stopLoading() {
+    document.querySelector('progress').style.display = 'none';
+  }
+
+};
