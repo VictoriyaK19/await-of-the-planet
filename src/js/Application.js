@@ -11,10 +11,11 @@ export default class Application extends EventEmitter {
 
   constructor() {
     super();
+    this._loading = document.querySelector("progress");
+    this._load();
     this._create();
-    this._loading = document.querySelector('progress');
-   
-    this.emit(Application.events.READY);
+    this._startLoading();
+    this._stopLoading();
   }
 
   _render({ name, terrain, population }) {
@@ -34,70 +35,52 @@ export default class Application extends EventEmitter {
       </p>
     </div>
   </div>
-</article>
-    `;
-  };
-  
-  async _load() {
-    this._startLoading();
+  </article>
+  `;
+}
 
-    async function getData(point) {
-      const url = new URL(String(point));
-      const promise = await fetch(url, {
-        method: "GET",
+async _load() {
+  const URL = "https://swapi.boom.dev/api/planets";
+  const arrayPlanets = [];
+  const rawData = await fetch(URL);
+  const planetsData = await rawData.json();
+
+  let next = planetsData.next;
+  let numberOfPages = parseInt(planetsData.count / 10);
+  for (let i = 1; i <= numberOfPages; i++) {
+    // The substring() method returns the part of the string between the start and end indexes, or to the end of the string. In this case it selects "https://swapi.boom.dev/api/planets?page=" and i adds the number of page
+    next = next.substring(0, next.length - 1) + i;
+
+    if (next !== null) {
+      const allRawPlanets = await fetch(next);
+      const allPlanets = await allRawPlanets.json();
+      const results = allPlanets.results;
+      results.forEach((element) => {
+        arrayPlanets.push(element);
       });
-       return await promise.json();
-    };
-
-    const planetsArray = [];
-    let data = await getData('https://swapi.boom.dev/api/planets');
-
-    planetsArray.push(data.results);
-    
-    while(this._checkIfNext(data) !== true) {
-      const currentData = await getData(data.next);
-      planetsArray.push(currentData.results);
-      data = await currentData;
     }
-    
-    this._stopLoading();
+  }
+  return arrayPlanets;
+}
 
-    return planetsArray;
-  };
-
-
-  _checkIfNext(obj) {
-    if (obj.next !== null) {
-      return false;
-  } else {
-      return true;
-  };
-  };
-
-  async _create() {
+async _create() {
+  const planets = await this._load();
+  planets.forEach((planet) => {
+    const name = planet.name;
+    const terrain = planet.terrain;
+    const population = planet.population;
     const box = document.createElement("div");
+    box.innerHTML = this._render({ name, terrain, population });
     box.classList.add("box");
-    
-    const planets = await this._load();
-    planets.forEach(element => {
-      element.forEach(planet => {
-        const name = planet.name;
-        const terrain = planet.terrain;
-        const population = planet.population;
-        box.innerHTML += this._render({name, terrain, population});
-      })
-    })
-
     document.body.querySelector(".main").appendChild(box);
+  });
+}
 
-  };
+_startLoading() {
+  this._loading.style.display = "block";
+}
 
-  _startLoading() {
-    document.querySelector('progress').style.display = 'block';
-  }
-
-  _stopLoading() {
-    document.querySelector('progress').style.display = 'none';
-  }
-
-};
+_stopLoading() {
+  this._loading.style.display = "none";
+}
+}
